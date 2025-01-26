@@ -1,0 +1,8 @@
+requests
+ccxt
+pandas
+numpy
+matplotlib
+twilio
+ta
+pytz
