@@ -8,6 +8,19 @@ import pytz
 
 LOOKBACK = 1  # Number of days to fetch historical prices
 
+# Fetch list of top 5 coins by market cap
+def fetch_top_coins():
+    url = "https://api.coingecko.com/api/v3/coins/markets"
+    params = {
+        "vs_currency": "usd",
+        "order": "market_cap_desc",
+        "per_page": 5,
+        "page": 1
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    return data
+
 # Fetch Historical Data
 def fetch_data(symbol, lookback):
     url = f"https://api.coingecko.com/api/v3/coins/{symbol}/market_chart"
@@ -62,10 +75,27 @@ def generate_signals(data):
 def main():
     print("Starting Real-Time Trading Bot...")
     while True:
-        symbol = input("Enter the cryptocurrency symbol (or 'exit' to quit): ").strip().lower()
-        if symbol == 'exit':
+        coin_list = fetch_top_coins()
+        print("Top 5 coins by market cap:")
+        for coin in coin_list:
+            print(f"{coin['id']}: {coin['name']} ({coin['symbol']})")
+        
+        user_input = input("Enter the cryptocurrency symbol or name (or 'exit' to quit): ").strip().lower()
+        if user_input == 'exit':
             print("Exiting the bot.")
             break
+        
+        # Find the coin by symbol or name
+        symbol = None
+        for coin in coin_list:
+            if user_input == coin['symbol'].lower() or user_input == coin['name'].lower():
+                symbol = coin['id']
+                break
+        
+        if not symbol:
+            print("Invalid symbol or name. Please try again.")
+            continue
+        
         while True:
             try:
                 data = fetch_data(symbol, LOOKBACK)
