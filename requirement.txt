@@ -6,3 +6,5 @@ matplotlib
 twilio
 ta
 pytz
+python-telegram-bot
+configparser
