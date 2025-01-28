@@ -1,13 +1,11 @@
 import requests
 import pandas as pd
-from ta.momentum import RSIIndicator
-from ta.trend import MACD
-from ta.volatility import BollingerBands
 import time
 import pytz
 import configparser
 from telegram_bot import send_telegram_message  # Import the send_telegram_message function
 from openai_integration import analyze_with_chatgpt  # Import the analyze_with_chatgpt function
+from chart_analysis import calculate_indicators, generate_signals  # Import chart analysis functions
 
 # Read configuration file
 config = configparser.ConfigParser()
@@ -59,26 +57,6 @@ def fetch_data(symbol, lookback):
     df = df.dropna()
     return df
 
-# Calculate Indicators
-def calculate_indicators(data):
-    data['RSI'] = RSIIndicator(data['Close'], window=14).rsi()
-    macd = MACD(data['Close'])
-    data['MACD'] = macd.macd()
-    data['Signal_Line'] = macd.macd_signal()
-    bb = BollingerBands(data['Close'])
-    data['BB_Upper'] = bb.bollinger_hband()
-    data['BB_Lower'] = bb.bollinger_lband()
-    return data
-
-# Generate Buy/Sell Signals
-def generate_signals(data):
-    data['Signal'] = 0
-    data.loc[
-        (data['RSI'] > 30) & (data['RSI'] < 70), 'Signal'] = 1  # Buy signal
-    data.loc[
-        (data['RSI'] < 30) | (data['RSI'] > 70), 'Signal'] = -1  # Sell signal
-    return data
-
 # Fetch current news related to the cryptocurrency
 def fetch_news(symbol):
     url = f"https://newsapi.org/v2/everything?q={symbol}&apiKey={NEWS_API_KEY}"
@@ -104,7 +82,9 @@ def process_data(symbol):
             news_articles = fetch_news(symbol)
             analysis = analyze_with_chatgpt(symbol, latest_data, news_articles)
             
-            send_telegram_message(symbol, latest_data, analysis)
+            # send_telegram_message(symbol, latest_data, analysis)
+            # Debugging: Print the analysis
+            print(analysis)
         except Exception as e:
             print(f"Error: {e}")
             print("Exception details:", e.__class__.__name__, e)
