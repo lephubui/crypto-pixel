@@ -8,3 +8,4 @@ ta
 pytz
 python-telegram-bot
 configparser
+openai==0.28

@@ -5,8 +5,20 @@ from ta.trend import MACD
 from ta.volatility import BollingerBands
 import time
 import pytz
+import configparser
+import openai
+from telegram_bot import send_telegram_message  # Import the send_telegram_message function
+
+# Read configuration file
+config = configparser.ConfigParser()
+config.read('config.ini')
 
 LOOKBACK = 1  # Number of days to fetch historical prices
+OPENAI_API_KEY = config['openai']['api_key']
+NEWS_API_KEY = config['newsapi']['api_key']
+
+# Initialize OpenAI API
+openai.api_key = OPENAI_API_KEY
 
 # Fetch list of top 5 coins by market cap
 def fetch_top_coins():
@@ -71,7 +83,63 @@ def generate_signals(data):
         (data['RSI'] < 30) | (data['RSI'] > 70), 'Signal'] = -1  # Sell signal
     return data
 
-# Real-Time Execution
+# Fetch current news related to the cryptocurrency
+def fetch_news(symbol):
+    url = f"https://newsapi.org/v2/everything?q={symbol}&apiKey={NEWS_API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+    articles = data.get('articles', [])
+    return articles
+
+# Analyze signal and news using ChatGPT
+def analyze_with_chatgpt(symbol, latest_data, news_articles):
+    prompt = f"Analyze the following data for {symbol}:\n\n{latest_data.to_string(index=False)}\n\n"
+    prompt += "Here are the latest news articles:\n"
+    for article in news_articles:
+        prompt += f"- {article['title']}: {article['description']}\n"
+    
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a financial analyst."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=500
+    )
+    analysis = response['choices'][0]['message']['content'].strip()
+    return analysis
+
+# Process data and send signals
+def process_data(symbol):
+    while True:
+        try:
+            data = fetch_data(symbol, LOOKBACK)
+            if data.empty:
+                print("No data fetched, skipping this iteration.")
+                time.sleep(60)
+                continue
+            data = calculate_indicators(data)
+            data = generate_signals(data)
+            latest_data = data.tail(1)
+            print(latest_data)  # Print the latest data with signals
+            
+            news_articles = fetch_news(symbol)
+            analysis = analyze_with_chatgpt(symbol, latest_data, news_articles)
+            
+            # send_telegram_message(symbol, latest_data, analysis)
+            print(analysis)
+        except Exception as e:
+            print(f"Error: {e}")
+            print("Exception details:", e.__class__.__name__, e)
+        time.sleep(60)  # Fetch data every 60 seconds
+        user_input = input("Enter 'switch' to change symbol or 'continue' to keep running: ").strip().lower()
+        if user_input == 'switch':
+            break
+        elif user_input == 'exit':
+            print("Exiting the bot.")
+            return
+
+# Main function
 def main():
     print("Starting Real-Time Trading Bot...")
     while True:
@@ -96,26 +164,7 @@ def main():
             print("Invalid symbol or name. Please try again.")
             continue
         
-        while True:
-            try:
-                data = fetch_data(symbol, LOOKBACK)
-                if data.empty:
-                    print("No data fetched, skipping this iteration.")
-                    time.sleep(60)
-                    continue
-                data = calculate_indicators(data)
-                data = generate_signals(data)
-                print(data.tail(1))  # Print the latest data with signals
-            except Exception as e:
-                print(f"Error: {e}")
-                print("Exception details:", e.__class__.__name__, e)
-            time.sleep(60)  # Fetch data every 60 seconds
-            user_input = input("Enter 'switch' to change symbol or 'continue' to keep running: ").strip().lower()
-            if user_input == 'switch':
-                break
-            elif user_input == 'exit':
-                print("Exiting the bot.")
-                return
+        process_data(symbol)
 
 if __name__ == "__main__":
     main()
