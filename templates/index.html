@@ -5,40 +5,86 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cryptocurrency Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
 </head>
 <body>
     <h1>Cryptocurrency Dashboard</h1>
-    <select id="coin-select">
-        {% for coin in coins %}
-            <option value="{{ coin.id }}">{{ coin.name }} ({{ coin.symbol }})</option>
-        {% endfor %}
-    </select>
-    <button onclick="fetchData()">Fetch Data</button>
-    <canvas id="chart" width="400" height="200"></canvas>
-    <h2>News</h2>
-    <div id="news"></div>
-    <h2>Analysis</h2>
-    <div id="analysis"></div>
-    <script>
-        async function fetchData() {
-            const symbol = document.getElementById('coin-select').value;
-            const response = await fetch(`/data/${symbol}`);
-            const result = await response.json();
-            const data = result.data;
-            const news = result.news;
-            const analysis = result.analysis;
+    <form method="post">
+        <select name="coin" id="coin-select">
+            {% for coin in coins %}
+                <option value="{{ coin.id }}" {% if selected_coin == coin.id %}selected{% endif %}>{{ coin.name }} ({{ coin.symbol }})</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Fetch Data</button>
+    </form>
+    {% if data %}
+        <canvas id="chart" width="400" height="200"></canvas>
+        <h2>Analysis</h2>
+        <div id="analysis">{{ analysis }}</div>
+        <h2>News</h2>
+        <div id="news">
+            {% for article in news %}
+                <div>
+                    <h3><a href="{{ article.url }}" target="_blank">{{ article.title }}</a></h3>
+                    <p>{{ article.description }}</p>
+                    <p><small>{{ article.publishedAt }}</small></p>
+                </div>
+            {% endfor %}
+        </div>
+        <script>
+            // Debugging: Log the data to the console
+            console.log('Data:', '{{ data|tojson|safe }}');
+            
+            const data = JSON.parse('{{ data|tojson|safe }}');
+            console.log('Parsed Data:', data);  // Log the parsed data
 
-            // Display chart
+            const candlestickData = data.map(d => ({
+                x: new Date(d.Timestamp),
+                o: d.Open,
+                h: d.High,
+                l: d.Low,
+                c: d.Close
+            }));
+            console.log('Candlestick Data:', candlestickData);  // Log the candlestick data
+
             const ctx = document.getElementById('chart').getContext('2d');
             const chart = new Chart(ctx, {
-                type: 'line',
+                type: 'candlestick',
                 data: {
-                    labels: data.map(d => d.Timestamp),
                     datasets: [{
-                        label: 'Close Price',
-                        data: data.map(d => d.Close),
+                        label: 'Candlestick',
+                        data: candlestickData,
                         borderColor: 'rgba(75, 192, 192, 1)',
                         borderWidth: 1
+                    },
+                    {
+                        label: 'SMA 50',
+                        data: data.map(d => ({ x: new Date(d.Timestamp), y: d.SMA_50 })),
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1,
+                        fill: false
+                    },
+                    {
+                        label: 'SMA 200',
+                        data: data.map(d => ({ x: new Date(d.Timestamp), y: d.SMA_200 })),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        fill: false
+                    },
+                    {
+                        label: 'EMA 50',
+                        data: data.filter(d => d.EMA_200 !== null).map(d => ({ x: new Date(d.Timestamp), y: d.EMA_50 })),
+                        borderColor: 'rgba(255, 206, 86, 1)',
+                        borderWidth: 1,
+                        fill: false
+                    },
+                    {
+                        label: 'EMA 200',
+                        data: data.filter(d => d.EMA_200 !== null).map(d => ({ x: new Date(d.Timestamp), y: d.EMA_200 })),
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        fill: false
                     }]
                 },
                 options: {
@@ -52,19 +98,7 @@
                     }
                 }
             });
-
-            // Display news
-            const newsDiv = document.getElementById('news');
-            newsDiv.innerHTML = '';
-            news.forEach(article => {
-                const articleDiv = document.createElement('div');
-                articleDiv.innerHTML = `<h3>${article.title}</h3><p>${article.description}</p>`;
-                newsDiv.appendChild(articleDiv);
-            });
-
-            // Display analysis
-            document.getElementById('analysis').innerText = analysis;
-        }
-    </script>
+        </script>
+    {% endif %}
 </body>
 </html>

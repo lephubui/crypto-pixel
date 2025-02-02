@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, request
 import pandas as pd
 import configparser
 from chart_analysis import calculate_indicators, generate_signals
@@ -67,24 +67,28 @@ def fetch_news(symbol):
     articles = data.get('articles', [])
     return articles
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
     coin_list = fetch_top_coins()
-    return render_template('index.html', coins=coin_list)
+    selected_coin = None
+    data = None
+    news_articles = None
+    analysis = None
+    data_empty = True
 
-@app.route('/data/<symbol>')
-def data(symbol):
-    data = fetch_data(symbol, LOOKBACK)
-    data = calculate_indicators(data)
-    data = generate_signals(data)
-    latest_data = data.tail(1)
-    news_articles = fetch_news(symbol)
-    analysis = analyze_with_chatgpt(symbol, latest_data, news_articles)
-    return jsonify({
-        'data': data.to_dict(orient='records'),
-        'news': news_articles,
-        'analysis': analysis
-    })
+    if request.method == 'POST':
+        selected_coin = request.form['coin']
+        data = fetch_data(selected_coin, LOOKBACK)
+        if not data.empty:
+            data_empty = False
+            data = calculate_indicators(data)
+            data = generate_signals(data)
+            latest_data = data.tail(1)
+            news_articles = fetch_news(selected_coin)
+            analysis = analyze_with_chatgpt(selected_coin, latest_data, news_articles)
+            data = data.replace({pd.NA: None, pd.NaT: None, float('nan'): None}).to_dict(orient='records')  # Replace NaN and NaT with None and convert to list of dictionaries
+
+    return render_template('index.html', coins=coin_list, selected_coin=selected_coin, data=data if not data_empty else None, news=news_articles, analysis=analysis)
 
 if __name__ == '__main__':
     app.run(debug=True)
